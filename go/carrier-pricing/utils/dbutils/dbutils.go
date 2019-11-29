@@ -79,9 +79,8 @@ func (r *RedisClient) GetValueFromDB(key string) (bool, string) {
 
 // VerifyKeyExistence is delegated to check if a key is alredy inserted
 func (r *RedisClient) VerifyKeyExistence(key string) bool {
-	tmp, err := r.R.Get(key).Result()
+	_, err := r.R.Get(key).Result()
 	if err == nil {
-		log.Println("SUCCESS | Key: ", key, " | Value: ", tmp)
 		return true
 	} else if err == redis.Nil {
 		log.Println("Key -> ", key, " does not exist")
@@ -91,17 +90,17 @@ func (r *RedisClient) VerifyKeyExistence(key string) bool {
 	return false
 }
 
-func (r *RedisClient) InitVeichleDB(veichle datastructure.VehicleList) {
-	for i, key := range veichle.Vehicles {
+func (r *RedisClient) InitVeichleDB(vehicle datastructure.VehicleList) {
+	for i, key := range vehicle.Vehicles {
 		if !r.VerifyKeyExistence(key) {
-			log.Println("Inserting ["+key+":", veichle.Prices[i], "]")
-			r.InsertIntoClient(key, strconv.Itoa(veichle.Prices[i]))
+			log.Println("Inserting ["+key+":", vehicle.Prices[i], "]")
+			r.InsertIntoClient(key, strconv.Itoa(vehicle.Prices[i]))
 		}
 	}
 }
 
-func (r *RedisClient) RemoveVeichleDB(veichle datastructure.VehicleList) {
-	for _, key := range veichle.Vehicles {
+func (r *RedisClient) RemoveVeichleDB(vehicle datastructure.VehicleList) {
+	for _, key := range vehicle.Vehicles {
 		if r.VerifyKeyExistence(key) {
 			log.Println("Removing [" + key + "]")
 			if r.RemoveValueFromDB(key) {

@@ -3,28 +3,26 @@ package api
 import (
 	"carrier-pricing/datastructure"
 	"carrier-pricing/utils"
+	"carrier-pricing/utils/dbutils"
 	"encoding/json"
 	"log"
 	"regexp"
+	"strconv"
 	"strings"
 
 	fileutils "github.com/alessiosavi/GoGPUtils/files"
 	helper "github.com/alessiosavi/GoGPUtils/helper"
 	stringutils "github.com/alessiosavi/GoGPUtils/string"
-	"github.com/go-redis/redis"
 	"github.com/valyala/fasthttp"
 )
 
-func InitHandler(reg *regexp.Regexp, certs ...string) (fasthttp.RequestHandler, bool) {
+func InitHandler(reg *regexp.Regexp, redis dbutils.RedisClient, certs ...string) (fasthttp.RequestHandler, bool) {
 
 	m := func(ctx *fasthttp.RequestCtx) { // Hook to the API methods "magilogically"
 		ctx.Response.Header.Set("carrier-pricing", "v0.0.1") // Set an header just for track the version of the software
 		log.Println("REQUEST -->", ctx, "| Headers:", ctx.Request.Header.String())
 		tmpChar := "============================================================"
 		switch string(ctx.Path()) {
-		case "/":
-			ctx.SetStatusCode(404)
-			log.Println(tmpChar)
 		case "/quotes":
 			// Allow only POST req
 			if ctx.IsPost() {
@@ -33,7 +31,22 @@ func InitHandler(reg *regexp.Regexp, certs ...string) (fasthttp.RequestHandler, 
 				var e string = "REQ_NOT_POST"
 				manageError(ctx, e)
 			}
+			log.Println(tmpChar)
+
+		case "/vehicle":
+			if ctx.IsPost() {
+				vehicle(ctx, reg, redis)
+			} else {
+				var e string = "REQ_NOT_POST"
+				manageError(ctx, e)
+			}
+			log.Println(tmpChar)
+
+		default:
+			ctx.SetStatusCode(404)
+			log.Println(tmpChar)
 		}
+
 	}
 
 	var enableSSL bool = true
@@ -42,7 +55,7 @@ func InitHandler(reg *regexp.Regexp, certs ...string) (fasthttp.RequestHandler, 
 		log.Println("Certs not provided, disabling ssl")
 		enableSSL = false
 	} else {
-		// TODO: Orders of certificate matters
+		// NOTE: Orders of certificate matters
 		if !fileutils.FileExists(certs[0]) {
 			log.Println("Certificate not provided")
 			enableSSL = false
@@ -56,9 +69,9 @@ func InitHandler(reg *regexp.Regexp, certs ...string) (fasthttp.RequestHandler, 
 	gzipHandler := fasthttp.CompressHandlerLevel(m, fasthttp.CompressBestCompression) // Compress data before sending (if requested by the client)
 	return gzipHandler, enableSSL
 }
-func InitAPIFasthttp(hostname, port string, reg *regexp.Regexp, redisClient *redis.Client, certs ...string) {
+func InitAPIFasthttp(hostname, port string, reg *regexp.Regexp, redisClient dbutils.RedisClient, certs ...string) {
 
-	gzipHandler, enableSSL := InitHandler(reg, certs...)
+	gzipHandler, enableSSL := InitHandler(reg, redisClient, certs...)
 
 	s := &fasthttp.Server{
 		Handler: gzipHandler,
@@ -86,51 +99,14 @@ func InitAPIFasthttp(hostname, port string, reg *regexp.Regexp, redisClient *red
 }
 
 func quotes(ctx *fasthttp.RequestCtx, reg *regexp.Regexp) {
-	var req datastructure.RequestQuotes
-
 	body := ctx.PostBody()
-	sBody := string(body)
-	log.Println("Managing input request: " + sBody)
-	if stringutils.IsBlank(sBody) || sBody == "{}" {
-		var e string = "EMPTY_REQUEST"
+
+	e, req := validateQuoteRequest(body, reg)
+	if e != "" {
 		manageError(ctx, e)
 		return
 	}
 
-	if !strings.Contains(sBody, "delivery_postcode") {
-		var e string = "Delivery post code is empty"
-		manageError(ctx, e)
-		return
-	}
-
-	if !strings.Contains(sBody, "pickup_postcode") {
-		var e string = "Pickup post code is empty"
-		manageError(ctx, e)
-		return
-	}
-
-	// Cast response into struct
-	err := json.Unmarshal(body, &req)
-	if err != nil {
-		log.Println("Unable to parse request [" + sBody + "]. Err: " + err.Error())
-		manageError(ctx, err.Error())
-		return
-	}
-	log.Println("Request unmarshalled [", req, "]")
-
-	// Manage not valid PickupPostcode
-	if !utils.ValidatePostCode(req.PickupPostcode, reg) {
-		var e string = "Pickup post code not valid! [" + req.PickupPostcode + "]"
-		manageError(ctx, e)
-		return
-	}
-
-	// Manage not valid DeliveryPostcode
-	if !utils.ValidatePostCode(req.DeliveryPostcode, reg) {
-		var e string = "Delivery post code not valid! [" + req.DeliveryPostcode + "]"
-		manageError(ctx, e)
-		return
-	}
 	// Calculating price
 	price := utils.Base36(req.PickupPostcode, req.DeliveryPostcode)
 
@@ -139,11 +115,114 @@ func quotes(ctx *fasthttp.RequestCtx, reg *regexp.Regexp) {
 	resp.PickupPostcode = req.PickupPostcode
 	resp.DeliveryPostcode = req.DeliveryPostcode
 	resp.Price = price
+
 	// Encoding response to stdout
-	err = json.NewEncoder(ctx).Encode(resp)
+	err := json.NewEncoder(ctx).Encode(resp)
 	if err != nil {
 		log.Println("Unable to write into customer response")
 	}
+}
+
+func vehicle(ctx *fasthttp.RequestCtx, reg *regexp.Regexp, redis dbutils.RedisClient) {
+	body := ctx.PostBody()
+	e, req := validateVeichleRequest(body, reg, redis)
+	if e != "" {
+		manageError(ctx, e)
+		return
+	}
+
+	ok, perc := redis.GetValueFromDB(req.Veichle)
+	if !ok {
+		var e string = `DB_cONNECTION_ERROR`
+		manageError(ctx, e)
+		return
+	}
+
+	percent, _ := strconv.Atoi(perc)
+	// Calculating price
+	price := utils.Base36(req.PickupPostcode, req.DeliveryPostcode)
+	log.Println("Before percent: ", price)
+	price = utils.AddPercent(price, percent)
+	log.Println("After percent: ", price)
+	// Populating datastructure
+	var resp datastructure.ResponseQuotes
+	resp.PickupPostcode = req.PickupPostcode
+	resp.DeliveryPostcode = req.DeliveryPostcode
+	resp.Price = price
+
+	// Encoding response to stdout
+	err := json.NewEncoder(ctx).Encode(resp)
+	if err != nil {
+		log.Println("Unable to write into customer response")
+	}
+
+}
+
+func validateVeichleRequest(body []byte, reg *regexp.Regexp, redis dbutils.RedisClient) (string, datastructure.RequestQuotes) {
+	sBody := string(body)
+	log.Println("Managing input request: " + sBody)
+	// Basic validation
+	e := utils.ValidateRequestBasic(sBody)
+	if e != "" {
+		return e, datastructure.RequestQuotes{}
+	}
+
+	if !strings.Contains(sBody, "vehicle") {
+		var e string = "VEHICLE_NOT_PROVIDED"
+		return e, datastructure.RequestQuotes{}
+	}
+
+	var req datastructure.RequestQuotes
+	// Cast response into struct
+	err := json.Unmarshal(body, &req)
+	if err != nil {
+		log.Println("Unable to parse request [" + sBody + "]. Err: " + err.Error())
+		return err.Error(), datastructure.RequestQuotes{}
+	}
+	log.Println("Request unmarshalled [", req, "] | Validating post codes")
+	e = utils.ValidatePostCodeRequest(req, reg)
+	if e != "" {
+		return e, datastructure.RequestQuotes{}
+	}
+
+	if stringutils.IsBlank(req.Veichle) {
+		var e string = "VEHICLE_PARM_EMPTY"
+		return e, datastructure.RequestQuotes{}
+	}
+
+	// Be sure that the vehicle is managed
+	if !redis.VerifyKeyExistence(req.Veichle) {
+		var e string = "VEHICLE_NOT_MANAGED"
+		return e, datastructure.RequestQuotes{}
+	}
+
+	return "", req
+}
+
+func validateQuoteRequest(body []byte, reg *regexp.Regexp) (string, datastructure.RequestQuotes) {
+	sBody := string(body)
+	log.Println("Managing input request: " + sBody)
+	// Basic validation
+	e := utils.ValidateRequestBasic(sBody)
+	if e != "" {
+		return e, datastructure.RequestQuotes{}
+	}
+
+	var req datastructure.RequestQuotes
+	// Cast response into struct
+	err := json.Unmarshal(body, &req)
+	if err != nil {
+		log.Println("Unable to parse request [" + sBody + "]. Err: " + err.Error())
+		return err.Error(), datastructure.RequestQuotes{}
+	}
+	log.Println("Request unmarshalled [", req, "]")
+
+	e = utils.ValidatePostCodeRequest(req, reg)
+	if e != "" {
+		return e, datastructure.RequestQuotes{}
+	}
+
+	return "", req
 }
 
 // manageError is delegated to print the error in the customer response

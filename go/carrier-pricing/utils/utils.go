@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	fileutils "github.com/alessiosavi/GoGPUtils/files"
+	stringutils "github.com/alessiosavi/GoGPUtils/string"
 )
 
 var regexpFormat string = `[A-Z]{2}[0-9][A-Z][0-9][A-Z]{2}`
@@ -47,12 +48,20 @@ func ValidatePostCode(code string, reg *regexp.Regexp) bool {
 	return reg.MatchString(code)
 }
 
+var configDefaultLocation string = `./conf/conf.json`
+var vehicleDefaultLocation string = `./conf/veichle_data.json`
+
 // VerifyCommandLineInput is delegated to manage the inputer parameter provide with the input flag from command line
-func VerifyCommandLineInput() datastructure.Configuration {
-	c := flag.String("config", "./conf/test.json", "Specify the configuration file.")
+func VerifyCommandLineInput() (datastructure.Configuration, datastructure.VehicleList) {
+	c := flag.String("config", configDefaultLocation, "Specify the configuration file.")
+	l := flag.String("vehicle", vehicleDefaultLocation, "Specify the vehicle:price list.")
 	flag.Parse()
-	if strings.Compare(*c, "./conf/test.json") == 0 {
-		log.Println("Running with default conf [" + *c + "]. Use `--config conf/config.json` to overwrite the configuration")
+
+	if strings.Compare(*c, configDefaultLocation) == 0 {
+		log.Println("Running with default conf [" + *c + "]. Use `--config file.json` to overwrite the configuration")
+	}
+	if strings.Compare(*l, vehicleDefaultLocation) == 0 {
+		log.Println("Running with default conf [" + *l + "]. Use `--config file.json` to overwrite the configuration")
 	}
 	if !fileutils.FileExists(*c) {
 		log.Fatalln("File [" + *c + "] does not exists!")
@@ -69,29 +78,72 @@ func VerifyCommandLineInput() datastructure.Configuration {
 	}
 	log.Println("VerifyCommandLineInput | Conf loaded -> ", cfg)
 
-	return cfg
+	vehicle := InitVehicleList(*l)
+	return cfg, vehicle
+
 }
 
 func InitVehicleList(vehicleJSON string) datastructure.VehicleList {
 	if !fileutils.FileExists(vehicleJSON) {
-		log.Fatalln("Veichle file not found [" + vehicleJSON + "]")
+		log.Fatalln("vehicle file not found [" + vehicleJSON + "]")
 	}
 
-	veichleData, err := ioutil.ReadFile(vehicleJSON)
+	vehicleData, err := ioutil.ReadFile(vehicleJSON)
 	if err != nil {
 		log.Fatal("Unable to read [" + vehicleJSON + "] Json")
+	} else {
+		log.Println("Veichle -> ", string(vehicleData))
 	}
 
 	var vehicle datastructure.VehicleList
-	err = json.Unmarshal(veichleData, &vehicle)
+	err = json.Unmarshal(vehicleData, &vehicle)
 
 	if err != nil {
 		log.Fatal("Unable to cast [" + vehicleJSON + "] into struct")
 	}
 
-	if len(vehicle.Vehicles) != len(vehicle.Prices) {
-		log.Fatal("Veichles and price have not the same size")
+	if len(vehicle.Vehicles) == 0 {
+		log.Fatal("vehicles empty")
 	}
 
 	return vehicle
+}
+
+func ValidateRequestBasic(sBody string) string {
+	if stringutils.IsBlank(sBody) || sBody == "{}" {
+		var e string = "EMPTY_REQUEST"
+		return e
+	}
+
+	if !strings.Contains(sBody, "delivery_postcode") {
+		var e string = "DELIVERY_POSTCODE_EMPTY"
+		return e
+	}
+
+	if !strings.Contains(sBody, "pickup_postcode") {
+		var e string = "PICKUP_POSTCODE_EMPTY"
+		return e
+	}
+	return ""
+}
+
+func ValidatePostCodeRequest(req datastructure.RequestQuotes, reg *regexp.Regexp) string {
+	// Manage not valid PickupPostcode
+	if !ValidatePostCode(req.PickupPostcode, reg) {
+		var e string = "PICKUP_POSTCODE_INVALID"
+		return e
+	}
+
+	// Manage not valid DeliveryPostcode
+	if !ValidatePostCode(req.DeliveryPostcode, reg) {
+		var e string = "DELIVERY_POSTCODE_INVALID"
+		return e
+	}
+	return ""
+}
+
+func AddPercent(price int, percent int) int {
+	var p float64 = float64(price*percent) / 100
+	total := math.Round(float64(price) + p)
+	return int(total)
 }

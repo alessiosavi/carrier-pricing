@@ -4,6 +4,7 @@ package datastructure
 type RequestQuotes struct {
 	PickupPostcode   string `json:"pickup_postcode"`
 	DeliveryPostcode string `json:"delivery_postcode"`
+	Veichle          string `json:"vehicle"`
 }
 
 // RequestQuotes is delegated to marshal the response related to the `/quotes` endpoint
