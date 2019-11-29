@@ -1,0 +1,9 @@
+{
+    "vehicles": ["bicycle",
+        "motorbike",
+        "parcel_car",
+        "small_van",
+        "large_van"
+    ],
+    "prices": [10, 15, 20, 30, 40]
+}
