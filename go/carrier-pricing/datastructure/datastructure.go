@@ -15,6 +15,7 @@ type ResponseQuotes struct {
 	Error            string `json:"error,omitempty"`
 }
 
+// Configuration save the data necessary for initialize the tool
 type Configuration struct {
 	Host    string `json:"Host"`
 	Port    int    `json:"Port"`
@@ -36,4 +37,20 @@ type Configuration struct {
 type VehicleList struct {
 	Vehicles []string `json:"vehicles"`
 	Prices   []int    `json:"prices"`
+}
+
+type CarrierList struct {
+	CarrierName string `json:"carrier_name"`
+	BasePrice   int    `json:"base_price"`
+	Services    []struct {
+		DeliveryTime int      `json:"delivery_time"`
+		Markup       int      `json:"markup"`
+		Vehicles     []string `json:"vehicles"`
+	} `json:"services"`
+}
+
+type PriceList struct {
+	Service      string `json:"service"`
+	Price        int    `json:"price"`
+	DeliveryTime int    `json:"delivery_time"`
 }

@@ -2,8 +2,8 @@ package api
 
 import (
 	"carrier-pricing/datastructure"
+	redisutils "carrier-pricing/dbutils/redis"
 	"carrier-pricing/utils"
-	"carrier-pricing/utils/dbutils"
 	"encoding/json"
 	"log"
 	"regexp"
@@ -16,7 +16,7 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-func InitHandler(reg *regexp.Regexp, redis dbutils.RedisClient, certs ...string) (fasthttp.RequestHandler, bool) {
+func InitHandler(reg *regexp.Regexp, redis redisutils.RedisClient, certs ...string) (fasthttp.RequestHandler, bool) {
 
 	m := func(ctx *fasthttp.RequestCtx) { // Hook to the API methods "magilogically"
 		ctx.Response.Header.Set("carrier-pricing", "v0.0.1") // Set an header just for track the version of the software
@@ -69,7 +69,7 @@ func InitHandler(reg *regexp.Regexp, redis dbutils.RedisClient, certs ...string)
 	gzipHandler := fasthttp.CompressHandlerLevel(m, fasthttp.CompressBestCompression) // Compress data before sending (if requested by the client)
 	return gzipHandler, enableSSL
 }
-func InitAPIFasthttp(hostname, port string, reg *regexp.Regexp, redisClient dbutils.RedisClient, certs ...string) {
+func InitAPIFasthttp(hostname, port string, reg *regexp.Regexp, redisClient redisutils.RedisClient, certs ...string) {
 
 	gzipHandler, enableSSL := InitHandler(reg, redisClient, certs...)
 
@@ -123,7 +123,7 @@ func quotes(ctx *fasthttp.RequestCtx, reg *regexp.Regexp) {
 	}
 }
 
-func vehicle(ctx *fasthttp.RequestCtx, reg *regexp.Regexp, redis dbutils.RedisClient) {
+func vehicle(ctx *fasthttp.RequestCtx, reg *regexp.Regexp, redis redisutils.RedisClient) {
 	body := ctx.PostBody()
 	e, req := validateVeichleRequest(body, reg, redis)
 	if e != "" {
@@ -133,7 +133,7 @@ func vehicle(ctx *fasthttp.RequestCtx, reg *regexp.Regexp, redis dbutils.RedisCl
 
 	ok, perc := redis.GetValueFromDB(req.Veichle)
 	if !ok {
-		var e string = `DB_cONNECTION_ERROR`
+		var e string = `DB_CONNECTION_ERROR`
 		manageError(ctx, e)
 		return
 	}
@@ -158,7 +158,7 @@ func vehicle(ctx *fasthttp.RequestCtx, reg *regexp.Regexp, redis dbutils.RedisCl
 
 }
 
-func validateVeichleRequest(body []byte, reg *regexp.Regexp, redis dbutils.RedisClient) (string, datastructure.RequestQuotes) {
+func validateVeichleRequest(body []byte, reg *regexp.Regexp, redis redisutils.RedisClient) (string, datastructure.RequestQuotes) {
 	sBody := string(body)
 	log.Println("Managing input request: " + sBody)
 	// Basic validation

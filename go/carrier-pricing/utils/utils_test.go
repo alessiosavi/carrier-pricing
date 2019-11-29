@@ -2,11 +2,17 @@ package utils
 
 import "testing"
 
-var jsonConf string = `../conf/veichle_data.json`
+var veichleConf string = `../conf/veichle_data.json`
+var carrierConf string = `../conf/carrier_data.json`
 
 func TestInitVehicleList(t *testing.T) {
-	vehicle := InitVehicleList(jsonConf)
+	vehicle := InitVehicleList(veichleConf)
 	t.Log(vehicle)
+}
+
+func TestInitCarrierList(t *testing.T) {
+	carrier := InitCarrierList(carrierConf)
+	t.Log(carrier)
 }
 
 func TestAddPercent(t *testing.T) {

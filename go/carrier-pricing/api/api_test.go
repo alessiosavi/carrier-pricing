@@ -88,7 +88,7 @@ func TestQuote(t *testing.T) {
 	}
 }
 
-func TestVeichle(t *testing.T) {
+func TestVeichleKO(t *testing.T) {
 	var url string = `https://localhost:8080/vehicle`
 	var resp *requeststruct.RequestResponse
 	var respStruct datastructure.ResponseQuotes
@@ -101,8 +101,31 @@ func TestVeichle(t *testing.T) {
 			t.Log(err)
 			t.Fail()
 		}
+		if stringutils.IsBlank(respStruct.Error) {
+			t.Error("Error expected")
+		}
+
+	} else {
+		t.Log(resp.Error)
+		t.Fail()
+	}
+}
+
+func TestVeichleOK(t *testing.T) {
+	var url string = `https://localhost:8080/vehicle`
+	var resp *requeststruct.RequestResponse
+	var respStruct datastructure.ResponseQuotes
+
+	body := `{"pickup_postcode":"SW1A1AA","delivery_postcode":"EC2A3LT","vehicle":"bicycle"}`
+	resp = requests.SendRequest(url, "POST", nil, []byte(body), true)
+	if resp.StatusCode == 200 {
+		err := json.Unmarshal(resp.Body, &respStruct)
+		if err != nil {
+			t.Log(err)
+			t.Fail()
+		}
 		if !stringutils.IsBlank(respStruct.Error) {
-			t.Error("Unexpected error [", respStruct.Error, "]")
+			t.Error("Unexpected error!")
 		}
 		if respStruct.Price != 348 {
 			t.Error("Wrong price [", respStruct.Price, "]")

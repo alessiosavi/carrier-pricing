@@ -50,37 +50,69 @@ func ValidatePostCode(code string, reg *regexp.Regexp) bool {
 
 var configDefaultLocation string = `./conf/conf.json`
 var vehicleDefaultLocation string = `./conf/veichle_data.json`
+var carrierDefaultLocation string = `./conf/carrier_data.json`
 
 // VerifyCommandLineInput is delegated to manage the inputer parameter provide with the input flag from command line
-func VerifyCommandLineInput() (datastructure.Configuration, datastructure.VehicleList) {
-	c := flag.String("config", configDefaultLocation, "Specify the configuration file.")
-	l := flag.String("vehicle", vehicleDefaultLocation, "Specify the vehicle:price list.")
+func VerifyCommandLineInput() (datastructure.Configuration, datastructure.VehicleList, []datastructure.CarrierList) {
+	conf := flag.String("config", configDefaultLocation, "Specify the configuration file.")
+	vehicle := flag.String("vehicle", vehicleDefaultLocation, "Specify the vehicle:price list.")
+	carrier := flag.String("carrier", carrierDefaultLocation, "Specify the carriers json list.")
 	flag.Parse()
 
-	if strings.Compare(*c, configDefaultLocation) == 0 {
-		log.Println("Running with default conf [" + *c + "]. Use `--config file.json` to overwrite the configuration")
+	if strings.Compare(*conf, configDefaultLocation) == 0 {
+		log.Println("Running with default conf [" + *conf + "]. Use `--config file.json` to overwrite the configuration")
 	}
-	if strings.Compare(*l, vehicleDefaultLocation) == 0 {
-		log.Println("Running with default conf [" + *l + "]. Use `--config file.json` to overwrite the configuration")
+	if strings.Compare(*vehicle, vehicleDefaultLocation) == 0 {
+		log.Println("Running with default conf [" + *vehicle + "]. Use `--vehicle file.json` to overwrite the configuration")
 	}
-	if !fileutils.FileExists(*c) {
-		log.Fatalln("File [" + *c + "] does not exists!")
+	if strings.Compare(*vehicle, carrierDefaultLocation) == 0 {
+		log.Println("Running with default conf [" + *carrier + "]. Use `--carrier file.json` to overwrite the configuration")
 	}
 
-	file, err := ioutil.ReadFile(*c)
+	if !fileutils.FileExists(*conf) {
+		log.Fatalln("File [" + *conf + "] does not exists!")
+	}
+	file, err := ioutil.ReadFile(*conf)
 	if err != nil {
 		log.Fatalln("VerifyCommandLineInput | can't open config file: ", err)
 	}
 	cfg := datastructure.Configuration{}
 	err = json.Unmarshal(file, &cfg)
 	if err != nil {
-		log.Fatalln("VerifyCommandLineInput | can't decode config JSON in ["+*c+"]: ", err)
+		log.Fatalln("VerifyCommandLineInput | can't decode config JSON in ["+*conf+"]: ", err)
 	}
 	log.Println("VerifyCommandLineInput | Conf loaded -> ", cfg)
 
-	vehicle := InitVehicleList(*l)
-	return cfg, vehicle
+	vehicles := InitVehicleList(*vehicle)
+	carriers := InitCarrierList(*carrier)
+	return cfg, vehicles, carriers
 
+}
+
+func InitCarrierList(carrierJSON string) []datastructure.CarrierList {
+
+	if !fileutils.FileExists(carrierJSON) {
+		log.Fatalln("carrier file not found [" + carrierJSON + "]")
+	}
+
+	carriersData, err := ioutil.ReadFile(carrierJSON)
+	if err != nil {
+		log.Fatal("Unable to read [" + carrierJSON + "] Json")
+	} else {
+		log.Println("Carriers -> ", string(carriersData))
+	}
+
+	var carriers []datastructure.CarrierList
+	err = json.Unmarshal(carriersData, &carriers)
+
+	if err != nil {
+		log.Fatal("Unable to cast [" + carrierJSON + "] into struct")
+	}
+
+	if len(carriers) == 0 {
+		log.Fatal("vehicles empty")
+	}
+	return carriers
 }
 
 func InitVehicleList(vehicleJSON string) datastructure.VehicleList {
@@ -143,7 +175,10 @@ func ValidatePostCodeRequest(req datastructure.RequestQuotes, reg *regexp.Regexp
 }
 
 func AddPercent(price int, percent int) int {
-	var p float64 = float64(price*percent) / 100
-	total := math.Round(float64(price) + p)
-	return int(total)
+	if percent > 0 {
+		var p float64 = float64(price*percent) / 100
+		total := math.Round(float64(price) + p)
+		return int(total)
+	}
+	return price
 }
