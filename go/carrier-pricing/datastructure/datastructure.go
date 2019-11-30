@@ -9,10 +9,11 @@ type RequestQuotes struct {
 
 // RequestQuotes is delegated to marshal the response related to the `/quotes` endpoint
 type ResponseQuotes struct {
-	PickupPostcode   string `json:"pickup_postcode"`
-	DeliveryPostcode string `json:"delivery_postcode"`
-	Price            int    `json:"price"`
-	Error            string `json:"error,omitempty"`
+	PickupPostcode   string      `json:"pickup_postcode"`
+	DeliveryPostcode string      `json:"delivery_postcode"`
+	Price            int         `json:"price"`
+	PriceList        []PriceList `json:"price_list,omitempty"`
+	Error            string      `json:"error,omitempty"`
 }
 
 // Configuration save the data necessary for initialize the tool

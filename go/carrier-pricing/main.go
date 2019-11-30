@@ -32,6 +32,6 @@ func main() {
 	// Avoid to initialize regexp for every request
 	reg := utils.InitRegexp()
 
-	api.InitAPIFasthttp("localhost", "8080", reg, r, `./conf/ssl/localhost.crt`, `./conf/ssl/localhost.key`)
+	api.InitAPIFasthttp("localhost", "8080", reg, r, mongoClient, cfg.Mongo.Carrier.DB, cfg.Mongo.Carrier.Collection, `./conf/ssl/localhost.crt`, `./conf/ssl/localhost.key`)
 
 }

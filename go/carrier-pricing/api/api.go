@@ -2,11 +2,13 @@ package api
 
 import (
 	"carrier-pricing/datastructure"
+	mongoutils "carrier-pricing/dbutils/mongo"
 	redisutils "carrier-pricing/dbutils/redis"
 	"carrier-pricing/utils"
 	"encoding/json"
 	"log"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -16,7 +18,7 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-func InitHandler(reg *regexp.Regexp, redis redisutils.RedisClient, certs ...string) (fasthttp.RequestHandler, bool) {
+func InitHandler(reg *regexp.Regexp, redis redisutils.RedisClient, mongo mongoutils.MongoClient, db, collection string, certs ...string) (fasthttp.RequestHandler, bool) {
 
 	m := func(ctx *fasthttp.RequestCtx) { // Hook to the API methods "magilogically"
 		ctx.Response.Header.Set("carrier-pricing", "v0.0.1") // Set an header just for track the version of the software
@@ -29,12 +31,12 @@ func InitHandler(reg *regexp.Regexp, redis redisutils.RedisClient, certs ...stri
 			case "/quotes":
 				// Allow only POST req
 				quotes(ctx, reg)
-				log.Println(tmpChar)
 
 			case "/vehicle":
 				vehicle(ctx, reg, redis)
-				log.Println(tmpChar)
 
+			case "/carrier":
+				carrier(ctx, reg, redis, mongo, db, collection)
 			default:
 				ctx.SetStatusCode(404)
 			}
@@ -66,9 +68,9 @@ func InitHandler(reg *regexp.Regexp, redis redisutils.RedisClient, certs ...stri
 	gzipHandler := fasthttp.CompressHandlerLevel(m, fasthttp.CompressBestCompression) // Compress data before sending (if requested by the client)
 	return gzipHandler, enableSSL
 }
-func InitAPIFasthttp(hostname, port string, reg *regexp.Regexp, redisClient redisutils.RedisClient, certs ...string) {
+func InitAPIFasthttp(hostname, port string, reg *regexp.Regexp, redisClient redisutils.RedisClient, mongo mongoutils.MongoClient, db, collection string, certs ...string) {
 
-	gzipHandler, enableSSL := InitHandler(reg, redisClient, certs...)
+	gzipHandler, enableSSL := InitHandler(reg, redisClient, mongo, db, collection, certs...)
 
 	s := &fasthttp.Server{
 		Handler: gzipHandler,
@@ -95,6 +97,52 @@ func InitAPIFasthttp(hostname, port string, reg *regexp.Regexp, redisClient redi
 	}
 }
 
+func carrier(ctx *fasthttp.RequestCtx, reg *regexp.Regexp, redis redisutils.RedisClient, mongo mongoutils.MongoClient, db, collection string) {
+
+	body := ctx.PostBody()
+	e, req := validateVeichleRequest(body, reg, redis)
+	if e != "" {
+		manageError(ctx, e)
+		return
+	}
+
+	ok, perc := redis.GetValueFromDB(req.Veichle)
+	if !ok {
+		var e string = `DB_CONNECTION_ERROR`
+		manageError(ctx, e)
+		return
+	}
+
+	percent, _ := strconv.Atoi(perc)
+	// Calculating price
+	price := utils.Base36(req.PickupPostcode, req.DeliveryPostcode)
+	price = utils.AddPercent(price, percent)
+
+	prices := mongo.QueryVehicle(db, collection, req.Veichle)
+
+	for i := range prices {
+		prices[i].Price = utils.AddPercent(price, prices[i].Price)
+	}
+
+	log.Println("After sort -> ", prices)
+	sort.Slice(prices, func(i, j int) bool {
+		return prices[i].Price < prices[j].Price
+	})
+	log.Println("After sort -> ", prices)
+
+	// Populating datastructure
+	var resp datastructure.ResponseQuotes
+	resp.PickupPostcode = req.PickupPostcode
+	resp.DeliveryPostcode = req.DeliveryPostcode
+	resp.PriceList = prices
+	resp.Price = price
+
+	// Encoding response to stdout
+	err := json.NewEncoder(ctx).Encode(resp)
+	if err != nil {
+		log.Println("Unable to write into customer response")
+	}
+}
 func quotes(ctx *fasthttp.RequestCtx, reg *regexp.Regexp) {
 	body := ctx.PostBody()
 

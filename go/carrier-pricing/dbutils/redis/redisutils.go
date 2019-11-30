@@ -104,7 +104,7 @@ func (r *RedisClient) RemoveVeichleDB(vehicle datastructure.VehicleList) {
 		if r.VerifyKeyExistence(key) {
 			// log.Println("Removing [" + key + "]")
 			if r.RemoveValueFromDB(key) {
-				// log.Println("Key [" + key + "] removed!")
+				log.Println("Key [" + key + "] removed!")
 			}
 		}
 	}

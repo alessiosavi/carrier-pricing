@@ -64,6 +64,7 @@ func (m *MongoClient) QueryVehicle(database, collection, vehicle string) []datas
 					var service datastructure.PriceList
 					service.Service = carrier[i].CarrierName
 					service.DeliveryTime = carrier[i].Services[j].DeliveryTime
+					// Save markup in price
 					service.Price = carrier[i].Services[j].Markup
 					priceList = append(priceList, service)
 				}
