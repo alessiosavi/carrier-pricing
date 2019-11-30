@@ -25,8 +25,8 @@ func TestWrongPickupPostcode(t *testing.T) {
 				t.Log(err)
 				t.Fail()
 			}
-			if stringutils.IsBlank(respStruct.Error) {
-				t.Error("Error expected")
+			if respStruct.Error != "PICKUP_POSTCODE_INVALID" {
+				t.Error(respStruct.Error)
 			}
 		} else {
 			t.Log(resp.Error)
@@ -51,8 +51,8 @@ func TestWrongDeliveryPostcode(t *testing.T) {
 				t.Log(err)
 				t.Fail()
 			}
-			if stringutils.IsBlank(respStruct.Error) {
-				t.Error("Error expected")
+			if respStruct.Error != "DELIVERY_POSTCODE_INVALID" {
+				t.Error(respStruct.Error)
 			}
 		} else {
 			t.Log(resp.Error)
@@ -88,7 +88,7 @@ func TestQuote(t *testing.T) {
 	}
 }
 
-func TestVeichleKO(t *testing.T) {
+func TestRequestVeichleNotManaged(t *testing.T) {
 	var url string = `https://localhost:8080/vehicle`
 	var resp *requeststruct.RequestResponse
 	var respStruct datastructure.ResponseQuotes
@@ -101,8 +101,123 @@ func TestVeichleKO(t *testing.T) {
 			t.Log(err)
 			t.Fail()
 		}
-		if stringutils.IsBlank(respStruct.Error) {
-			t.Error("Error expected")
+		if respStruct.Error != "VEHICLE_NOT_MANAGED" {
+			t.Error(respStruct.Error)
+		}
+
+	} else {
+		t.Log(resp.Error)
+		t.Fail()
+	}
+}
+
+func TestRequestVeichleNotProvided(t *testing.T) {
+	var url string = `https://localhost:8080/vehicle`
+	var resp *requeststruct.RequestResponse
+	var respStruct datastructure.ResponseQuotes
+
+	body := `{"pickup_postcode":"SW1A1AA","delivery_postcode":"EC2A3LT"}`
+	resp = requests.SendRequest(url, "POST", nil, []byte(body), true)
+	if resp.StatusCode == 200 {
+		err := json.Unmarshal(resp.Body, &respStruct)
+		if err != nil {
+			t.Log(err)
+			t.Fail()
+		}
+		if respStruct.Error != "VEHICLE_NOT_PROVIDED" {
+			t.Error(respStruct.Error)
+		}
+
+	} else {
+		t.Log(resp.Error)
+		t.Fail()
+	}
+}
+
+func TestRequestDeliveryPostEmpty(t *testing.T) {
+	var url string = `https://localhost:8080/quotes`
+	var resp *requeststruct.RequestResponse
+	var respStruct datastructure.ResponseQuotes
+
+	body := `{"pickup_postcode":"","delivery_postcode":"EC2A3LT"}`
+	resp = requests.SendRequest(url, "POST", nil, []byte(body), true)
+	if resp.StatusCode == 200 {
+		err := json.Unmarshal(resp.Body, &respStruct)
+		if err != nil {
+			t.Log(err)
+			t.Fail()
+		}
+		if respStruct.Error != "PICKUP_POSTCODE_INVALID" {
+			t.Error(respStruct.Error)
+		}
+
+	} else {
+		t.Log(resp.Error)
+		t.Fail()
+	}
+}
+
+func TestRequestPostCodeEmpty(t *testing.T) {
+	var url string = `https://localhost:8080/quotes`
+	var resp *requeststruct.RequestResponse
+	var respStruct datastructure.ResponseQuotes
+
+	body := `{"pickup_postcode":"","delivery_postcode":"EC2A3LT"}`
+	resp = requests.SendRequest(url, "POST", nil, []byte(body), true)
+	if resp.StatusCode == 200 {
+		err := json.Unmarshal(resp.Body, &respStruct)
+		if err != nil {
+			t.Log(err)
+			t.Fail()
+		}
+		if respStruct.Error != "PICKUP_POSTCODE_INVALID" {
+			t.Error(respStruct.Error)
+		}
+
+	} else {
+		t.Log(resp.Error)
+		t.Fail()
+	}
+}
+
+func TestRequestNoVeichle(t *testing.T) {
+	var url string = `https://localhost:8080/vehicle`
+	var resp *requeststruct.RequestResponse
+	var respStruct datastructure.ResponseQuotes
+
+	body := `{"pickup_postcode":"SW1A1AA","delivery_postcode":"EC2A3LT"}`
+	resp = requests.SendRequest(url, "POST", nil, []byte(body), true)
+	if resp.StatusCode == 200 {
+		err := json.Unmarshal(resp.Body, &respStruct)
+		if err != nil {
+			t.Log(err)
+			t.Fail()
+		}
+		if respStruct.Error != "VEHICLE_NOT_PROVIDED" {
+			t.Error(respStruct.Error)
+		}
+
+	} else {
+		t.Log(resp.Error)
+		t.Fail()
+	}
+}
+
+func TestRequestNotPost(t *testing.T) {
+	var url string = `https://localhost:8080/vehicle`
+	var resp *requeststruct.RequestResponse
+	var respStruct datastructure.ResponseQuotes
+
+	body := `{"pickup_postcode":"SW1A1AA","delivery_postcode":"EC2A3LT"}`
+	resp = requests.SendRequest(url, "GET", nil, []byte(body), true)
+	if resp.StatusCode == 200 {
+		err := json.Unmarshal(resp.Body, &respStruct)
+		if err != nil {
+			t.Log(err)
+			t.Fail()
+		}
+		if respStruct.Error != "REQ_NOT_POST" {
+			t.Error(respStruct.Error)
 		}
 
 	} else {

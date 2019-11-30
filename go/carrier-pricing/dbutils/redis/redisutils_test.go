@@ -15,10 +15,10 @@ func TestInitVeichleDB(t *testing.T) {
 	r.Shutdown()
 }
 
-// func TestRemoveVeichleDB(t *testing.T) {
-// 	var r RedisClient
-// 	r.ConnectToDb("", "", 1)
-// 	vehicle := utils.InitVehicleList(jsonConf)
-// 	r.RemoveVeichleDB(vehicle)
-// 	r.Shutdown()
-// }
+func TestRemoveVeichleDB(t *testing.T) {
+	var r RedisClient
+	r.ConnectToDb("", "", 1)
+	vehicle := utils.InitVehicleList(jsonConf)
+	r.RemoveVeichleDB(vehicle)
+	r.Shutdown()
+}
