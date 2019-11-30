@@ -27,7 +27,7 @@ func Base36(s1, s2 string) int {
 	// Round in defect
 	r1 = (r1 / 100000000) - 0.5
 	r := math.RoundToEven(r1)
-	// We are not an ONG, set minimum price in case of same postal code
+	// We are not an ONG, set minimum price in case of same postal code :D
 	if r < 4 {
 		r = 4
 	}
@@ -72,6 +72,8 @@ func VerifyCommandLineInput() (datastructure.Configuration, datastructure.Vehicl
 	if !fileutils.FileExists(*conf) {
 		log.Fatalln("File [" + *conf + "] does not exists!")
 	}
+
+	// Reading global conf
 	file, err := ioutil.ReadFile(*conf)
 	if err != nil {
 		log.Fatalln("VerifyCommandLineInput | can't open config file: ", err)
@@ -83,7 +85,10 @@ func VerifyCommandLineInput() (datastructure.Configuration, datastructure.Vehicl
 	}
 	log.Println("VerifyCommandLineInput | Conf loaded -> ", cfg)
 
+	// Init veichle markup (for Redis)
 	vehicles := InitVehicleList(*vehicle)
+
+	// Init Carriers promotion (for MongoDB)
 	carriers := InitCarrierList(*carrier)
 	return cfg, vehicles, carriers
 
@@ -98,8 +103,6 @@ func InitCarrierList(carrierJSON string) []datastructure.CarrierList {
 	carriersData, err := ioutil.ReadFile(carrierJSON)
 	if err != nil {
 		log.Fatal("Unable to read [" + carrierJSON + "] Json")
-	} else {
-		log.Println("Carriers -> ", string(carriersData))
 	}
 
 	var carriers []datastructure.CarrierList
@@ -123,8 +126,6 @@ func InitVehicleList(vehicleJSON string) datastructure.VehicleList {
 	vehicleData, err := ioutil.ReadFile(vehicleJSON)
 	if err != nil {
 		log.Fatal("Unable to read [" + vehicleJSON + "] Json")
-	} else {
-		log.Println("Veichle -> ", string(vehicleData))
 	}
 
 	var vehicle datastructure.VehicleList
@@ -141,7 +142,9 @@ func InitVehicleList(vehicleJSON string) datastructure.VehicleList {
 	return vehicle
 }
 
+// ValidateRequestBasic is a method that verify the common data between requests that share the same parameter
 func ValidateRequestBasic(sBody string) string {
+	// Empty request
 	if stringutils.IsBlank(sBody) || sBody == "{}" {
 		var e string = "EMPTY_REQUEST"
 		return e
@@ -159,6 +162,7 @@ func ValidateRequestBasic(sBody string) string {
 	return ""
 }
 
+// ValidateRequestBasic is delegated to specify the validation for the PostCode
 func ValidatePostCodeRequest(req datastructure.RequestQuotes, reg *regexp.Regexp) string {
 	// Manage not valid PickupPostcode
 	if !ValidatePostCode(req.PickupPostcode, reg) {
@@ -174,6 +178,7 @@ func ValidatePostCodeRequest(req datastructure.RequestQuotes, reg *regexp.Regexp
 	return ""
 }
 
+// AddPercent is delegated to calculate the increment based on markup
 func AddPercent(price int, percent int) int {
 	if percent > 0 {
 		var p float64 = float64(price*percent) / 100

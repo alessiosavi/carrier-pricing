@@ -6,11 +6,12 @@ services:
       context: . 
       dockerfile: Dockerfile
     ports:
-      - "8080:8080" 
+      - "0.0.0.0:8080:8080" 
     restart: always
     depends_on: 
       - redisdb
       - mongodb
+    network_mode: "host"
 
 
   mongodb:
@@ -22,11 +23,11 @@ services:
     volumes:
       - mongo-db:/var/lib/mongo
     ports:
-      - 27017:27017
+      - "0.0.0.0:27017:27017"
     expose: 
       - "27017"
     command: mongod
-
+    network_mode: "host"
 
 
   redisdb:
@@ -34,12 +35,13 @@ services:
     image: redis
     restart: always
     ports:
-      - "6379:6379"
+      - "0.0.0.0:6379:6379"
     expose:
       - '6379'
     volumes:
       - redis-db:/var/lib/redis
     entrypoint: redis-server --appendonly yes
+    network_mode: "host"
     
 volumes:
   mongo-db:

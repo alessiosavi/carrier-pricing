@@ -4,6 +4,7 @@ import (
 	"carrier-pricing/datastructure"
 	"log"
 
+	stringutils "github.com/alessiosavi/GoGPUtils/string"
 	"github.com/globalsign/mgo"
 	"github.com/globalsign/mgo/bson"
 )
@@ -17,10 +18,15 @@ type MongoClient struct {
 func (m *MongoClient) InitMongoDBConnection(host string, port int, connectionMode string, refreshMode bool) {
 	log.Println("Connecting to MongoDB using: ", host)
 	var err error
+	if stringutils.IsBlank(host) {
+		host = "0.0.0.0"
+	}
+
 	m.M, err = mgo.Dial(host) // Connection to MongoDB
 	if err != nil {
-		log.Fatalln("Error! MongoDB does not reply! :/", m.M)
+		log.Fatalln("Error! MongoDB does not reply! :/")
 	}
+	// Verify mongo connection
 	err = m.M.Ping()
 	if err != nil {
 		log.Fatal("Unable to connect to mongo!", err)
@@ -41,30 +47,38 @@ func (m *MongoClient) RemoveCollectionFromDB(database string, collection string)
 	return nil
 }
 
+// PopulateData is delegated to initialize the MongoDB collection related to the promotion of the carriers
 func (m *MongoClient) PopulateData(carrier []datastructure.CarrierList, database, collection string) {
 	for i := range carrier {
-		m.InsertData(carrier[i], database, collection, carrier[i].CarrierName)
+		if m.InsertData(carrier[i], database, collection, carrier[i].CarrierName) == "ALREDY_EXIST" {
+			log.Println("Carrier [" + carrier[i].CarrierName + "] alredy exists!")
+		}
 	}
 }
 
+// QueryVehicle is deleated to extract from the DB the list of carriers that are compliant with the given veichle
+// NOTE: validation on the veichle is made during the HTTP api validation checking on Redis
 func (m *MongoClient) QueryVehicle(database, collection, vehicle string) []datastructure.PriceList {
 	//db.carriers_name.find({"services.vehicles":{"$in":["large_van"]}})
 	t := []string{vehicle}
 	var carrier []datastructure.CarrierList
+	var priceList []datastructure.PriceList
+	// Extract the promotion related to the input vehicle
 	err := m.M.DB(database).C(collection).Find(bson.M{"services.vehicles": bson.M{"$in": t}}).All(&carrier)
 	if err != nil {
-		log.Fatal(err)
+		log.Println("Error during search: [" + err.Error() + "]")
+		return priceList
 	}
-	//log.Println("Carrier -> ", carrier)
-	var priceList []datastructure.PriceList
+
+	// Populating price list
 	for i := range carrier {
 		for j := range carrier[i].Services {
 			for k := range carrier[i].Services[j].Vehicles {
-				if carrier[i].Services[j].Vehicles[k] == "small_van" {
+				if carrier[i].Services[j].Vehicles[k] == vehicle {
 					var service datastructure.PriceList
 					service.Service = carrier[i].CarrierName
 					service.DeliveryTime = carrier[i].Services[j].DeliveryTime
-					// Save markup in price
+					//NOTE: Save markup % in price
 					service.Price = carrier[i].Services[j].Markup
 					priceList = append(priceList, service)
 				}
@@ -75,14 +89,12 @@ func (m *MongoClient) QueryVehicle(database, collection, vehicle string) []datas
 	return priceList
 }
 
-// InsertData is used for insert a generic data into a collection
-// It take in input the session, database and collection where insert the change
+// InsertData is delegated to populate the given MongoDB collection using the carrier data in input
 func (m *MongoClient) InsertData(carrier datastructure.CarrierList, database, collection, username string) string {
 	log.Println("Verify if carrier is alredy registered in DB: ", database, " | Collection: ", collection, " | Carrier: ", carrier)
 	err := m.M.DB(database).C(collection).Find(bson.M{"carriername": username}).Select(bson.M{"carriername": 1}).One(nil) // Searching the user
 
-	log.Println("Error ->", err)
-	if err != nil { // User is not present into the DB
+	if err == mgo.ErrNotFound { // User is not present into the DB
 		log.Println("Registering new carrier ...")
 		err = m.M.DB(database).C(collection).Insert(carrier)
 		if err != nil {
@@ -91,19 +103,9 @@ func (m *MongoClient) InsertData(carrier datastructure.CarrierList, database, co
 		}
 		log.Println("carrier registered! -> ", carrier)
 		return "OK"
+	} else if err != nil {
+		log.Fatalln("Error during query. Err:", err.Error())
 	}
 	log.Println("carrier alredy exists! | ", carrier, " avoiding to overwrite")
 	return "ALREDY_EXIST"
-}
-
-// RemoveUser Remove a registered user from MongoDB
-func (m *MongoClient) RemoveUser(database, collection, carrier_name string) error {
-	log.Println("RemoveUser | Removing user: ", carrier_name, " | From DB: ", database, " | Collection: ", collection)
-	err := m.M.DB(database).C(collection).Remove(bson.M{"Username": carrier_name})
-	if err != nil {
-		log.Fatalln("RemoveUser | Error during delete of user :( | User: ", carrier_name, " | Session: ", m.M, " | Error: ", err)
-		return err
-	}
-	log.Println("RemoveUser | Correctly deleted | ", carrier_name)
-	return nil
 }

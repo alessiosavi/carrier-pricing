@@ -10,7 +10,13 @@ import (
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Lshortfile)
-
+	// f, err := os.OpenFile("log/log.txt", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	// if err != nil {
+	// 	log.Println("Unable to create log file")
+	// }
+	// defer f.Close()
+	// log.SetOutput(f)
+	// log.Println("Logging initialized")
 	cfg, vehicle, carriers := utils.VerifyCommandLineInput()
 	log.Println("CFG: ", cfg, "Veichle: ", vehicle)
 

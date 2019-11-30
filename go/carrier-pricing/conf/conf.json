@@ -14,7 +14,7 @@
         "DB": 1
     },
     "Mongo": {
-        "Host": "127.0.0.1",
+        "Host": "0.0.0.0",
         "Port": 27017,
         "Carrier": {
             "DB": "carrier-pricing",

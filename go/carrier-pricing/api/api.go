@@ -37,6 +37,7 @@ func InitHandler(reg *regexp.Regexp, redis redisutils.RedisClient, mongo mongout
 
 			case "/carrier":
 				carrier(ctx, reg, redis, mongo, db, collection)
+
 			default:
 				ctx.SetStatusCode(404)
 			}
@@ -70,22 +71,24 @@ func InitHandler(reg *regexp.Regexp, redis redisutils.RedisClient, mongo mongout
 }
 func InitAPIFasthttp(hostname, port string, reg *regexp.Regexp, redisClient redisutils.RedisClient, mongo mongoutils.MongoClient, db, collection string, certs ...string) {
 
+	// Create an handler for the HTTP API service
 	gzipHandler, enableSSL := InitHandler(reg, redisClient, mongo, db, collection, certs...)
 
 	s := &fasthttp.Server{
 		Handler: gzipHandler,
 		// Every response will contain 'Server: carrier-pricing challenge' header.
 		Name: "carrier-pricing challenge",
-		// Other Server settings may be set here.
+		// set a maxing request size for avoid DDOS
 		MaxRequestBodySize: 100 * 1024,
 	}
 
 	log.Println("Max size allowed (per file) ->", helper.ConvertSize(float64(s.MaxRequestBodySize), "KB"), "KB")
+	// Check if SSL can be enabled
 	if enableSSL {
 		err := s.ListenAndServeTLS(hostname+":"+port, certs[0], certs[1]) // Try to start the server with input "host:port" received in input
 		if err != nil {                                                   // No luck, connection not successfully. Probably port used ...
 			if strings.Contains(err.Error(), `PEM inputs may have been switched`) {
-				log.Println("WARNING! PEM inputs may have been switched")
+				log.Println("WARNING! PEM inputs may have been switched, change the order of certificate files")
 			}
 			log.Fatalln("Unable to spawn SSL server. Err: " + err.Error())
 		}
@@ -113,18 +116,30 @@ func carrier(ctx *fasthttp.RequestCtx, reg *regexp.Regexp, redis redisutils.Redi
 		return
 	}
 
-	percent, _ := strconv.Atoi(perc)
+	percent, err := strconv.Atoi(perc)
+	if err != nil {
+		log.Fatal("There is an error in the json file related to the markup increment!")
+	}
 	// Calculating price
 	price := utils.Base36(req.PickupPostcode, req.DeliveryPostcode)
 	price = utils.AddPercent(price, percent)
 
+	// Retrieve the list of carriers related to the veichle
 	prices := mongo.QueryVehicle(db, collection, req.Veichle)
 
+	if len(prices) == 0 {
+		log.Println("No promotion found for veichle [" + req.Veichle + "]")
+		var e string = "NO_PROMOTION_FOUND"
+		manageError(ctx, e)
+		return
+	}
+
+	// Calculating additional markup
 	for i := range prices {
 		prices[i].Price = utils.AddPercent(price, prices[i].Price)
 	}
 
-	log.Println("After sort -> ", prices)
+	log.Println("Before sort -> ", prices)
 	sort.Slice(prices, func(i, j int) bool {
 		return prices[i].Price < prices[j].Price
 	})
@@ -138,7 +153,7 @@ func carrier(ctx *fasthttp.RequestCtx, reg *regexp.Regexp, redis redisutils.Redi
 	resp.Price = price
 
 	// Encoding response to stdout
-	err := json.NewEncoder(ctx).Encode(resp)
+	err = json.NewEncoder(ctx).Encode(resp)
 	if err != nil {
 		log.Println("Unable to write into customer response")
 	}
