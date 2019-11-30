@@ -1,5 +1,18 @@
 version: '3.3'
 services:
+
+  carrier-pricing:
+    build:
+      context: . 
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080" 
+    restart: always
+    depends_on: 
+      - redisdb
+      - mongodb
+
+
   mongodb:
     container_name: mongodb
     image: mongo:latest
@@ -9,11 +22,14 @@ services:
     volumes:
       - mongo-db:/var/lib/mongo
     ports:
-        - 27017:27017
+      - 27017:27017
     expose: 
-        - "27017"
+      - "27017"
     command: mongod
-  redis:
+
+
+
+  redisdb:
     container_name: redis
     image: redis
     restart: always
