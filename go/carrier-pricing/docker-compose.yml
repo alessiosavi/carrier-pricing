@@ -1,0 +1,30 @@
+version: '3.3'
+services:
+  mongodb:
+    container_name: mongodb
+    image: mongo:latest
+    restart: always
+    environment:
+      - MONGO_DATA_DIR=/var/lib/mongo
+    volumes:
+      - mongo-db:/var/lib/mongo
+    ports:
+        - 27017:27017
+    expose: 
+        - "27017"
+    command: mongod
+  redis:
+    container_name: redis
+    image: redis
+    restart: always
+    ports:
+      - "6379:6379"
+    expose:
+      - '6379'
+    volumes:
+      - redis-db:/var/lib/redis
+    entrypoint: redis-server --appendonly yes
+    
+volumes:
+  mongo-db:
+  redis-db:

@@ -31,6 +31,14 @@ type Configuration struct {
 		Port string `json:"Port"`
 		DB   int    `json:"DB"`
 	} `json:"Redis"`
+	Mongo struct {
+		Host    string `json:"Host"`
+		Port    int    `json:"Port"`
+		Carrier struct {
+			DB         string `json:"DB"`
+			Collection string `json:"Collection"`
+		} `json:"Carrier"`
+	} `json:"Mongo"`
 }
 
 // VehicleList is delegated to save the % of price increment

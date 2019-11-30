@@ -22,29 +22,26 @@ func InitHandler(reg *regexp.Regexp, redis redisutils.RedisClient, certs ...stri
 		ctx.Response.Header.Set("carrier-pricing", "v0.0.1") // Set an header just for track the version of the software
 		log.Println("REQUEST -->", ctx, "| Headers:", ctx.Request.Header.String())
 		tmpChar := "============================================================"
-		switch string(ctx.Path()) {
-		case "/quotes":
-			// Allow only POST req
-			if ctx.IsPost() {
+		if ctx.IsPost() {
+			log.Println(tmpChar)
+			switch string(ctx.Path()) {
+
+			case "/quotes":
+				// Allow only POST req
 				quotes(ctx, reg)
-			} else {
-				var e string = "REQ_NOT_POST"
-				manageError(ctx, e)
-			}
-			log.Println(tmpChar)
+				log.Println(tmpChar)
 
-		case "/vehicle":
-			if ctx.IsPost() {
+			case "/vehicle":
 				vehicle(ctx, reg, redis)
-			} else {
-				var e string = "REQ_NOT_POST"
-				manageError(ctx, e)
+				log.Println(tmpChar)
+
+			default:
+				ctx.SetStatusCode(404)
 			}
 			log.Println(tmpChar)
-
-		default:
-			ctx.SetStatusCode(404)
-			log.Println(tmpChar)
+		} else {
+			var e string = "REQ_NOT_POST"
+			manageError(ctx, e)
 		}
 
 	}
@@ -141,9 +138,7 @@ func vehicle(ctx *fasthttp.RequestCtx, reg *regexp.Regexp, redis redisutils.Redi
 	percent, _ := strconv.Atoi(perc)
 	// Calculating price
 	price := utils.Base36(req.PickupPostcode, req.DeliveryPostcode)
-	log.Println("Before percent: ", price)
 	price = utils.AddPercent(price, percent)
-	log.Println("After percent: ", price)
 	// Populating datastructure
 	var resp datastructure.ResponseQuotes
 	resp.PickupPostcode = req.PickupPostcode
